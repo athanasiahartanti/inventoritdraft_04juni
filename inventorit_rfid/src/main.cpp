@@ -14,13 +14,18 @@
 //  SDA: PIN 21
 //  SCL: PIN 22
 
-//Modem
-const char* ssid = "MV007-F066"; 
-const char* password = "64083282";
+// //Modem
+// const char* ssid = "MV007-F066"; 
+// const char* password = "64083282";
 
 // //BSQ
 // const char* ssid = "C 0707"; 
 // const char* password = "12345678";
+
+//tethering
+const char* ssid = "CEIOT";
+const char* password = "CE-1OT@!";
+
 
 
 
@@ -114,7 +119,7 @@ void WifiConnect() {
   WiFi.mode(WIFI_STA); 
   WiFi.begin(ssid, password); 
   while (WiFi.waitForConnectResult() != WL_CONNECTED) { 
-    Serial.println("Connection Failed! Rebooting..."); 
+    Serial.println("WiFi Connection Failed! Rebooting..."); 
     delay(5000); 
     ESP.restart(); 
   }   
