@@ -69,28 +69,27 @@ void onFirebaseStreamTimeout(bool timeout)
 
 
 void LogCardTap(const String& cardUid) {
-  // 1. Create a fast path pointing to our new quick-lookup index directory
-  // 🌟 FIX: Updated to match your exact JSON folder key name: "cardIDtostudentNo"
+  // 1. Point to your card-to-NIM translation index directory
   String lookupPath = "/cardIDtostudentNo/" + cardUid;
   String studentNo = "";
 
   Serial.print("Scanning lookup directory for Card: ");
   Serial.println(cardUid);
 
-  // 2. Query the index folder to translate the Card UID into a Student Number (NIM)
+  // 2. Query the index directory to extract the matching Student Number (NIM)
   if (Firebase.RTDB.getString(&fbdo, lookupPath.c_str())) {
     if (fbdo.dataType() == "string") {
-      studentNo = fbdo.stringData(); // We found the NIM! (e.g. "2802488990")
+      studentNo = fbdo.stringData(); // Found it (e.g., "2802454285")
     }
   }
 
-  // Fallback check: If the card isn't registered in our index book yet, reject it!
+  // Fallback check: If the card isn't registered yet, reject access instantly!
   if (studentNo == "") {
     Serial.printf("Access Denied! Card UID %s is not linked to any student number.\n", cardUid.c_str());
     return;
   }
 
-  // 3. NOW PROCEED WITH YOUR EXACT SAME LOGIC, but using the studentNo as the folder key!
+  // 3. TARGET USER PROFILE DIRECTORY PATH
   String userPath = "/users/" + studentNo;
   
   if (Firebase.RTDB.getJSON(&fbdo, userPath.c_str())) {
@@ -103,38 +102,39 @@ void LogCardTap(const String& cardUid) {
       json.get(checkedInData, "isStudentCheckedIn");
       
       bool currentStatus = checkedInData.boolValue;
-      bool newStatus = !currentStatus; // Flip the bit!
+      bool newStatus = !currentStatus; // Flip state: true -> false or false -> true
 
-      Serial.printf("Access Granted! Welcome back %s (NIM: %s)\n", 
+      Serial.printf("Access Granted! Welcome %s (NIM: %s)\n", 
                     studentNameData.stringValue.c_str(), 
                     studentNo.c_str());
       
-      // Update the attendance boolean flag inside their NIM folder
+      // Toggle the real-time check-in flag within their top-level properties
       String statusPath = userPath + "/isStudentCheckedIn";
       Firebase.RTDB.setBool(&fbdo, statusPath.c_str(), newStatus);
 
-      // 4. HISTORICAL LOGGING: Map it cleanly under the student's personal identification key
-      String logPath = "/CheckoutHistory/log_" + studentNo + "_" + String(millis());
+      // 4. NESTED ATTENDANCE TIMELINE HISTORY LOGGING
+      // Target directory path is now direct and nested inside the student profile folder structure!
+      String attendanceLogPath = userPath + "/attendanceHistory";
       
       FirebaseJson logData;
-      // 🌟 FIX: Storing data matching your new blueprint field parameters
-      logData.add("studentNo", studentNo); 
-      logData.add("cardID", cardUid); // Changed from cardUid to cardID to stay fully consistent!
-      logData.add("studentName", studentNameData.stringValue);
       logData.add("statusText", newStatus ? "Clocked In" : "Clocked Out");
-      logData.add("timestamp", "{\".sv\": \"timestamp\"}"); // Using your cloud real-world time server stamp value!
       
+      // Inject Google's actual universal epoch server timestamp value for exact tracking metrics
       FirebaseJson timestampObj;
-      timestampObj.set(".sv", "timestamp"); // This requests Google's actual server time
-      logData.set("timestamp", timestampObj); // Inject it properly into your log map!
+      timestampObj.set(".sv", "timestamp"); 
+      logData.set("timestamp", timestampObj); 
       
-      if (Firebase.RTDB.setJSON(&fbdo, logPath.c_str(), &logData)) {
-        Serial.println("Attendance event successfully synced with Server Timestamp.");
+      // 🌟 USING pushJSON: Appends a unique chronological entry under 'attendanceHistory'
+      if (Firebase.RTDB.pushJSON(&fbdo, attendanceLogPath.c_str(), &logData)) {
+        Serial.printf("Attendance log successfully appended to /users/%s/attendanceHistory!\n", studentNo.c_str());
+      } else {
+        Serial.printf("Failed to append nested log: %s\n", fbdo.errorReason().c_str());
       }
     }
+  } else {
+    Serial.printf("Database fetch failure for user %s: %s\n", studentNo.c_str(), fbdo.errorReason().c_str());
   }
 }
-
 //Previous Version (Full Made)
 // void LogCardTap(const String& cardUid) {
 //   String userPath = "/users/" + cardUid;
